@@ -26,7 +26,7 @@ while True:
     break
 
 # Home positition of the robot (THIS IS YOUR 0,0 COORDINATE)
-home_position = [0.104, 0.601, 0.12, -3.14, 0.074, 0.0] # x,y,z,rx,ry,rz (BASE FRAME, NOT VIEW)
+home_position = [0.217, 0.506, 0.239, -2.352, 0.773, 0.681] # x,y,z,rx,ry,rz (BASE FRAME, NOT VIEW)
 home_pos_j = rtde_c.getInverseKinematics(home_position) # j1,j2,j3,j4,j5,j6
 
 # DAQ Parameters
@@ -76,15 +76,15 @@ def read_magnetic_field():
             break
         # Processing acquired data for each task. This involves removing initial samples, filtering noisy data collected, and converting to E-field from voltage readings
         ai0 = data[0][pre_wave_cutoff:]
-        mag_x = max(hf.noise_filter(ai0)) - min(hf.noise_filter(ai0))
         ai0 = [float(i)/amplification_factor/0.003 for i in ai0]
+        mag_x = abs(max(hf.noise_filter(ai0))) + abs(min(hf.noise_filter(ai0)))
         ai1 = data[1][pre_wave_cutoff:]
-        mag_y = max(hf.noise_filter(ai1)) - min(hf.noise_filter(ai1))
         ai1 = [float(i)/amplification_factor/0.003 for i in ai1]
+        mag_y = abs(max(hf.noise_filter(ai1))) + abs(min(hf.noise_filter(ai1)))
         ai2 = data[2][pre_wave_cutoff:]
-        mag_z = max(hf.noise_filter(ai2)) - min(hf.noise_filter(ai2))
         ai2 = [float(i)/amplification_factor/0.003 for i in ai2]
-        mag_total = (mag_x**2 + mag_y**2 + mag_z**2)**0.5
+        mag_z = abs(max(hf.noise_filter(ai2))) + abs(min(hf.noise_filter(ai2)))
+        mag_total = sqrt(mag_x**2 + mag_y**2 + mag_z**2)
 
         dt = 1 / sample_rate
         time_axis = np.linspace(0, (num_samples - pre_wave_cutoff - 1) * dt, num_samples - pre_wave_cutoff)
