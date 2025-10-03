@@ -1,21 +1,32 @@
 import nidaqmx
+from nidaqmx.constants import READ_ALL_AVAILABLE, AcquisitionType
+import rtde_control, rtde_receive
+import time
+import dev.helper_functions as hf
 import numpy as np
 import matplotlib.pyplot as plt
-import rtde_control
-import rtde_receive
 import tkinter as tk
-from tkinter import messagebox, simpledialog
-from nidaqmx.constants import READ_ALL_AVAILABLE, AcquisitionType
+from math import *
+from tkinter import messagebox,simpledialog
 
 # Name of the output file
 output_file = 'test_data.txt'
 
-# Initialize RTDE interfaces
-rtde_c = rtde_control.RTDEControlInterface("192.168.1.102")
-rtde_r = rtde_receive.RTDEReceiveInterface("192.168.1.102")
+hf.socket_check()
+
+while True:
+    try:
+        rtde_c = rtde_control.RTDEControlInterface("192.168.1.102")
+        rtde_r = rtde_receive.RTDEReceiveInterface("192.168.1.102")
+    except:
+        root = tk.Tk()
+        root.withdraw()
+        messagebox.showerror("Error", "Turn remote control mode on and then press ok")
+        continue
+    break
 
 # Home positition of the robot (THIS IS YOUR 0,0 COORDINATE)
-home_position = [.225,-.139,.286,2.286,-2.184,0.072] # x,y,z,rx,ry,rz (BASE FRAME, NOT VIEW)
+home_position = [0.104, 0.601, 0.12, -3.14, 0.074, 0.0] # x,y,z,rx,ry,rz (BASE FRAME, NOT VIEW)
 home_pos_j = rtde_c.getInverseKinematics(home_position) # j1,j2,j3,j4,j5,j6
 
 # DAQ Parameters
@@ -24,70 +35,54 @@ num_samples = 35 # number of samples per channel
 pre_wave_cutoff = 7 #number of samples removed from beginning
 amplification_factor = 11
 
-# Function to check and filter noise from the data
-def noise_filter(data):
-    #Calculate mean of absolute value of each value in data
-    mean = np.mean(np.abs(data))
-    if mean < 0.05:
-        return [0 for i in data]
-    else:
-        return data
-
-# Function to check with user if graph is satisfactory
-def ask_yes_no_popup():
-    root = tk.Tk()
-    root.withdraw()
-
-    response = messagebox.askyesno("Confirmation", "Is this a good TMS pulse?")
-
-    if response:
-        root.destroy()
-        return True
-    else:
-        root.destroy()
-        return False
-
 # Function to collect magnetic field data from the DAQ
 def read_magnetic_field():
     while True:
-        with nidaqmx.Task() as ai_task, nidaqmx.Task() as ao_task:
+        while True:
+            try:
+                with nidaqmx.Task() as ai_task, nidaqmx.Task() as ao_task:
 
-            # Add analog input channels for three axes
-            ai_task.ai_channels.add_ai_voltage_chan("Dev1/ai0")  # x
-            ai_task.ai_channels.add_ai_voltage_chan("Dev1/ai1")  # y
-            ai_task.ai_channels.add_ai_voltage_chan("Dev1/ai2") #z
+                    # Add analog input channels for three axes
+                    ai_task.ai_channels.add_ai_voltage_chan("Dev1/ai0")  # x
+                    ai_task.ai_channels.add_ai_voltage_chan("Dev1/ai1")  # y
+                    ai_task.ai_channels.add_ai_voltage_chan("Dev1/ai2") #z
 
-            # Configure timing and trigger from the stimulator
-            ai_task.timing.cfg_samp_clk_timing(sample_rate, sample_mode=AcquisitionType.FINITE, samps_per_chan=num_samples)
-            ai_task.triggers.start_trigger.cfg_dig_edge_start_trig("/Dev1/PFI0")
+                    # Configure timing and trigger from the stimulator
+                    ai_task.timing.cfg_samp_clk_timing(sample_rate, sample_mode=AcquisitionType.FINITE, samps_per_chan=num_samples)
+                    ai_task.triggers.start_trigger.cfg_dig_edge_start_trig("/Dev1/PFI0")
 
-            # Add analog output channel to trigger the stimulator
-            ao_task.ao_channels.add_ao_voltage_chan("Dev1/ao0")
+                    # Add analog output channel to trigger the stimulator
+                    ao_task.ao_channels.add_ao_voltage_chan("Dev1/ao0")
 
-            # Initiate data acquisition
-            ai_task.start()
-            
-            # Clear any previous triggers and send trigger pulses to the stimulator
-            ao_task.write(0)
-            ao_task.write(5)
-            ao_task.write(0)
+                    # Initiate data acquisition
+                    ai_task.start()
+                    
+                    # Clear any previous triggers and send trigger pulses to the stimulator
+                    ao_task.write(0)
+                    ao_task.write(5)
+                    ao_task.write(0)
 
-            # Read the acquired data from all channels
-            data = ai_task.read(READ_ALL_AVAILABLE)
+                    # Read the acquired data from all channels
+                    data = ai_task.read(READ_ALL_AVAILABLE)
 
-            # Stop the tasks
-            ai_task.stop()
-            ao_task.stop()
-        
+                    # Stop the tasks
+                    ai_task.stop()
+                    ao_task.stop()
+            except:
+                root = tk.Tk()
+                root.withdraw()
+                messagebox.showerror("Error", "Press OK and then turn the stimulator on")
+                continue
+            break
         # Processing acquired data for each task. This involves removing initial samples, filtering noisy data collected, and converting to E-field from voltage readings
         ai0 = data[0][pre_wave_cutoff:]
-        mag_x = max(noise_filter(ai0)) - min(noise_filter(ai0))
+        mag_x = max(hf.noise_filter(ai0)) - min(hf.noise_filter(ai0))
         ai0 = [float(i)/amplification_factor/0.003 for i in ai0]
         ai1 = data[1][pre_wave_cutoff:]
-        mag_y = max(noise_filter(ai1)) - min(noise_filter(ai1))
+        mag_y = max(hf.noise_filter(ai1)) - min(hf.noise_filter(ai1))
         ai1 = [float(i)/amplification_factor/0.003 for i in ai1]
         ai2 = data[2][pre_wave_cutoff:]
-        mag_z = max(noise_filter(ai2)) - min(noise_filter(ai2))
+        mag_z = max(hf.noise_filter(ai2)) - min(hf.noise_filter(ai2))
         ai2 = [float(i)/amplification_factor/0.003 for i in ai2]
         mag_total = (mag_x**2 + mag_y**2 + mag_z**2)**0.5
 
@@ -105,69 +100,136 @@ def read_magnetic_field():
         plt.legend()
         plt.grid(True)
         plt.tight_layout()
-        plt.show()
+        plt.show(block=False)
 
         # Ask user if the pulse is satisfactory
-        test = ask_yes_no_popup()
+        test = hf.ask_yes_no_popup("Is this a good TMS pulse?")
 
         if test == True:
+            plt.close()
             return [mag_x, mag_y, mag_z, mag_total]
         else:
+            plt.close()
             continue
 
+# Function to move the robot in a straight line within tool frame
+def find_pose(distance,inv=False):
+    pose_wrt = rtde_c.getTCPOffset()
+    move = [distance[0],distance[1],distance[2],pose_wrt[3],pose_wrt[4],pose_wrt[5]] 
+    if inv:
+        return rtde_c.getInverseKinematics(rtde_c.poseTrans(rtde_r.getActualTCPPose(),move))
+    return rtde_c.poseTrans(rtde_r.getActualTCPPose(),move)
+
 # Move the robot to the specified coordinate using RTDE communication with the UR5e
-def move_robot():
+def find_robot_position():
+    
     # Move robot to 0,0 coordinate
     rtde_c.moveJ(home_pos_j)
     root = tk.Tk()
     root.withdraw()
 
-    xcoord = simpledialog.askfloat("Input", "Enter X coordinate relative to this position:")
-    ycoord = simpledialog.askfloat("Input", "Enter Y coordinate relative to this position:")
-    
+    xcoord = simpledialog.askinteger("Input", "Enter X coordinate relative to this position (in mm):")
+    ycoord = simpledialog.askinteger("Input", "Enter Y coordinate relative to this position (in mm):")
+    root.destroy()
     # Move robot to specified coordinate
-    target_position = [xcoord + home_position[0], ycoord + home_position[1], home_position[2], home_position[3], home_position[4], home_position[5]]
-    target_tcp = rtde_c.getInverseKinematics(target_position)
-    rtde_c.moveJ(target_tcp)
-
-    ########
-    # Here I need to either add in a call to the script on the robot or rewrite it within RTDE framework to automatically orient end effector to be normal to the head surface
-    #####
+    rtde_c.moveJ(find_pose([xcoord/1000, ycoord/1000, 0],inv=True))
+    while not rtde_c.isSteady():
+        time.sleep(0.1)
+    normalize_coil()
     position = rtde_r.getActualTCPPose()
 
     return [xcoord, ycoord, position[0], position[1], position[2], position[3], position[4], position[5]]
 
+# Function to make the coil normal to the surface
+def normalize_coil():
+    # Coil normalizing parameters
+    rx = .25 # Initial angular change for each iteration in x
+    ry = .25 # Initial angular change for each iteration in y
+    err = .5 # Acceptable error in N
+    num_cycles = 50 # Max number of cycles before raising concern to operator
+    i = 0
+    contact_distance = 100 # Distance to move down to check for contact (in mm)
+    xdir_i,ydir_i = 1,1
+    xdir,ydir = xdir_i,ydir_i
+    xgood,ygood = False, False
 
-def save_to_file(mag,pos):
-    header = 'Mag (V/m)\tx_rel (mm)\ty_rel (mm)\tx_field (V/m)\ty_field (V/m)\tz_field (V/m)\tx (m)\ty (m)\tz (m)\trx (rad)\try (rad)\trz (rad)'
-    output = [mag[3], pos[0], pos[1], mag[0], mag[1], mag[2], pos[2], pos[3], pos[4], pos[5], pos[6], pos[7]]
+    rtde_c.moveL(find_pose([0,0,contact_distance/1000]),speed=0.015,asynchronous=True)
+    rtde_c.startContactDetection()
 
-    # Loading existing data from the output file
-    data = np.loadtxt('saved_data/'+ output_file,skiprows=1,usecols=(0,1,2))
+    while not rtde_c.readContactDetection():
+        time.sleep(.01)
+    rtde_c.stopContactDetection()
 
-    # Filter out the lines in data that match the x and y coordinates
-    lines = np.array([], dtype=float)
-    for line in data:
-        if not (line[1] == pos[0] and line[2] == pos[1]):
-            lines = np.append(lines,[i for i in line])
+    while not xgood or not ygood:
+        rtde_c.moveL(find_pose([0,0,-0.001]),speed=0.002)
+        if i > 0:
+            pose_wrt = rtde_c.getTCPOffset()
+            move = [0, 0, 0, pose_wrt[3] + radians(rx*xdir*1),pose_wrt[4] + radians(ry*ydir*1),pose_wrt[5]] 
+            rtde_c.moveJ(rtde_c.getInverseKinematics(rtde_c.poseTrans(rtde_r.getActualTCPPose(),move)))
+        # Move robot to surface to check for contact forces
+        rtde_c.moveL(find_pose([0,0,contact_distance/1000]),speed=0.0005,asynchronous=True)
+        rtde_c.startContactDetection()
 
-    lines = np.append(lines,[output])
+        while not rtde_c.readContactDetection():
+            time.sleep(.001)
+        rtde_c.stopContactDetection()
 
-    # Reshape to 2D array with 3 columns
-    lines = lines.reshape(-1, 12) 
-
-    # Sort by x, then y
-    sorted_data = lines[np.lexsort((lines[:, 1], lines[:, 0]))]  
-
-    # Save the sorted data back to the file
-    np.savetxt(output_file, sorted_data, fmt='%s', delimiter=' ', header=header, comments='')
-
-def main():
-    # Move robot to the specified position
-    pos = move_robot()
-    mag = read_magnetic_field()
-
-    save_to_file(mag,pos)
-
+        # Collect force wrt tool frame
+        force = rtde_r.getActualTCPForce()
+        tcp = rtde_r.getActualTCPPose()
+        tcp_t = tcp
+        tcp_t[3:] = [0,0,0]
+        tcp_f = rtde_c.poseTrans(hf.pose_inv(tcp),rtde_c.poseTrans(tcp_t,force))
+        x_i = tcp_f[0]
+        y_i = tcp_f[1]
+        print('Fx: %f, Fy: %f' %(round(float(x_i),3),round(float(y_i),3)))
+    
+        if abs(x_i) > err and not xgood:
+            xdir = abs(x_i)/x_i
+            if xdir != xdir_i:
+                xdir_i = xdir
+                rx = rx/2
+        elif not xgood:
+            xgood = True
+            rx = 0
+            
+        if abs(y_i) > err and not ygood:
+            ydir = abs(y_i)/y_i
+            if ydir != ydir_i:
+                ydir_i = ydir
+                ry = ry/2
+        elif not ygood:
+            ygood = True
+            ry = 0
+        
+        i += 1
+    print("Coil in position")
+    
 if __name__ == "__main__":
-    main()
+        try:
+            print("Connected. Press Ctrl+C to stop.")
+            while True:
+                # Move robot to the specified position
+                pos = find_robot_position()
+                mag = read_magnetic_field()
+                hf.save_to_file(mag,pos,output_file)
+                print(f"Data saved to {output_file}")
+                hf.plot_map(output_file)
+                test = hf.ask_yes_no_popup("Keep collecting points?")
+                plt.close()
+                if test == True:
+                    continue
+                break   
+
+        except KeyboardInterrupt:
+            print("KeyboardInterrupt detected. Disconnecting...")
+            
+        finally:
+            # Ensure the robot is stopped and the connection is closed
+            print("Shutting down RTDE connection.")
+            if rtde_c.isConnected():
+                rtde_c.stopScript()
+                rtde_c.disconnect()
+            if rtde_r.isConnected():
+                rtde_r.disconnect()
+            print("Connection closed.")
