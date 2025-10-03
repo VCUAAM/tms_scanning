@@ -13,7 +13,7 @@ from tkinter import messagebox,simpledialog
 output_file = '100325_qbc_50.txt'
 
 # Home positition of the robot (THIS IS YOUR 0,0 COORDINATE)
-home_position = [0.224, 0.538, 0.223, -2.27, 0.762, 1.013] # x,y,z,rx,ry,rz (BASE FRAME, NOT VIEW)
+home_position = [0.211, 0.586, 0.233, -2.251, 0.842, 1.043] # x,y,z,rx,ry,rz (BASE FRAME, NOT VIEW)
 
 hf.socket_check()
 
