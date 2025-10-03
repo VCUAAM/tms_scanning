@@ -10,7 +10,10 @@ from math import *
 from tkinter import messagebox,simpledialog
 
 # Name of the output file
-output_file = 'test_data.txt'
+output_file = '100325_qbc_50.txt'
+
+# Home positition of the robot (THIS IS YOUR 0,0 COORDINATE)
+home_position = [0.224, 0.538, 0.223, -2.27, 0.762, 1.013] # x,y,z,rx,ry,rz (BASE FRAME, NOT VIEW)
 
 hf.socket_check()
 
@@ -25,8 +28,6 @@ while True:
         continue
     break
 
-# Home positition of the robot (THIS IS YOUR 0,0 COORDINATE)
-home_position = [0.217, 0.506, 0.239, -2.352, 0.773, 0.681] # x,y,z,rx,ry,rz (BASE FRAME, NOT VIEW)
 home_pos_j = rtde_c.getInverseKinematics(home_position) # j1,j2,j3,j4,j5,j6
 
 # DAQ Parameters
