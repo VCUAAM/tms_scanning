@@ -13,7 +13,7 @@ from tkinter import messagebox,simpledialog
 output_file = '100325_qbc_50.txt'
 
 # Home positition of the robot (THIS IS YOUR 0,0 COORDINATE)
-home_position = [0.211, 0.586, 0.233, -2.251, 0.842, 1.043] # x,y,z,rx,ry,rz (BASE FRAME, NOT VIEW)
+home_position = [-0.014, 0.561, 0.236, -2.668, 0.408, -0.592] # x,y,z,rx,ry,rz (BASE FRAME, NOT VIEW)
 
 hf.socket_check()
 
@@ -32,8 +32,8 @@ home_pos_j = rtde_c.getInverseKinematics(home_position) # j1,j2,j3,j4,j5,j6
 
 # DAQ Parameters
 sample_rate = 90000 #Hz
-num_samples = 35 # number of samples per channel
-pre_wave_cutoff = 7 #number of samples removed from beginning
+num_samples = 300#35 # number of samples per channel
+pre_wave_cutoff = 0#7 #number of samples removed from beginning
 amplification_factor = 11
 
 # Function to collect magnetic field data from the DAQ
@@ -78,13 +78,13 @@ def read_magnetic_field():
         # Processing acquired data for each task. This involves removing initial samples, filtering noisy data collected, and converting to E-field from voltage readings
         ai0 = data[0][pre_wave_cutoff:]
         ai0 = [float(i)/amplification_factor/0.003 for i in ai0]
-        mag_x = abs(max(hf.noise_filter(ai0))) + abs(min(hf.noise_filter(ai0)))
+        mag_x = max([abs(max(hf.noise_filter(ai0))),abs(min(hf.noise_filter(ai0)))])
         ai1 = data[1][pre_wave_cutoff:]
         ai1 = [float(i)/amplification_factor/0.003 for i in ai1]
-        mag_y = abs(max(hf.noise_filter(ai1))) + abs(min(hf.noise_filter(ai1)))
+        mag_y = max([abs(max(hf.noise_filter(ai1))),abs(min(hf.noise_filter(ai1)))])
         ai2 = data[2][pre_wave_cutoff:]
         ai2 = [float(i)/amplification_factor/0.003 for i in ai2]
-        mag_z = abs(max(hf.noise_filter(ai2))) + abs(min(hf.noise_filter(ai2)))
+        mag_z = max([abs(max(hf.noise_filter(ai2))),abs(min(hf.noise_filter(ai2)))])
         mag_total = sqrt(mag_x**2 + mag_y**2 + mag_z**2)
 
         dt = 1 / sample_rate
@@ -94,7 +94,7 @@ def read_magnetic_field():
         plt.figure(figsize=(10, 5))
         plt.plot(time_axis, ai0, label="AI0")   
         plt.plot(time_axis, ai1, label="AI1")
-        plt.plot(time_axis, ai2, label="AI2")
+        #plt.plot(time_axis, ai2, label="AI2")
         plt.xlabel("Time (s)")
         plt.ylabel("E-Field Magnitude Range (V/m)")
         plt.title("NI-USB 6363 DAQ Data")
@@ -136,7 +136,7 @@ def find_robot_position():
     rtde_c.moveJ(find_pose([xcoord/1000, ycoord/1000, 0],inv=True))
     while not rtde_c.isSteady():
         time.sleep(0.1)
-    normalize_coil()
+    #normalize_coil()
     position = rtde_r.getActualTCPPose()
 
     return [xcoord, ycoord, position[0], position[1], position[2], position[3], position[4], position[5]]
@@ -204,6 +204,7 @@ def normalize_coil():
             ry = 0
         
         i += 1
+    rtde_c.stopL()
     print("Coil in position")
     
 if __name__ == "__main__":
