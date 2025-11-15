@@ -9,7 +9,7 @@ from tkinter import messagebox
 
 # DAQ Parameters
 sample_rate = 90000 #Hz
-num_samples = 300#35 # number of samples per channel
+num_samples = 35#35 # number of samples per channel
 pre_wave_cutoff = 0#7 #number of samples removed from beginning
 amplification_factor = 11
 
@@ -41,8 +41,6 @@ def read_magnetic_field():
                 root.withdraw()
                 messagebox.showerror("Error", "Press OK and then turn the stimulator on")
                 continue
-            finally:
-                quit()
             break
 
         # Processing acquired data for each task. This involves removing initial samples, filtering noisy data collected, and converting to E-field from voltage readings
@@ -60,7 +58,7 @@ def read_magnetic_field():
         dt = 1 / sample_rate
         time_axis = np.linspace(0, (num_samples - pre_wave_cutoff - 1) * dt, num_samples - pre_wave_cutoff)
 
-        mag_plt = np.ones(time_axis)*mag_total
+        mag_plt = np.ones(time_axis.shape)*mag_total
 
         # Plotting the data
         plt.figure(figsize=(10, 5))
@@ -68,9 +66,10 @@ def read_magnetic_field():
         plt.plot(time_axis, ai1, label="AI1")
         plt.plot(time_axis, ai2, label="AI2")
         plt.plot(time_axis, mag_plt, label="magnitude")
+        #plt.annotate(f'Magnitude: {int(mag_total)} V/m', (0,15))
         plt.xlabel("Time (s)")
         plt.ylabel("E-Field Magnitude Range (V/m)")
-        plt.title("NI-USB 6363 DAQ Data")
+        plt.title(f'Magnitude: {int(mag_total)} V/m')
         plt.legend()
         plt.grid(True)
         plt.tight_layout()
@@ -90,10 +89,7 @@ if __name__ == "__main__":
         try:
             while True:
                 mag = read_magnetic_field()
-                test = hf.ask_yes_no_popup("Keep collecting points?")
                 plt.close()
-                if test == True:
-                    continue
                 break   
 
         except KeyboardInterrupt:
