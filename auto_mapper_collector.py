@@ -10,10 +10,10 @@ from math import *
 from tkinter import messagebox,simpledialog
 
 # Name of the output file
-output_file = '100325_qbc_50.txt'
+output_file = '121725_qbc_50.txt' 
 
 # Home positition of the robot (THIS IS YOUR 0,0 COORDINATE)
-home_position = [-0.014, 0.561, 0.236, -2.668, 0.408, -0.592] # x,y,z,rx,ry,rz (BASE FRAME, NOT VIEW)
+home_position = [0.047, 0.76, 0.21, -2.383, 0.866, 0.146] # x,y,z,rx,ry,rz (BASE FRAME, NOT VIEW)
 
 hf.socket_check()
 
@@ -31,10 +31,10 @@ while True:
 home_pos_j = rtde_c.getInverseKinematics(home_position) # j1,j2,j3,j4,j5,j6
 
 # DAQ Parameters
-sample_rate = 90000 #Hz
+sample_rate = 5000 #Hz
 num_samples = 300#35 # number of samples per channel
 pre_wave_cutoff = 0#7 #number of samples removed from beginning
-amplification_factor = 11
+amplification_factor = 6
 
 # Function to collect magnetic field data from the DAQ
 def read_magnetic_field():
@@ -50,8 +50,8 @@ def read_magnetic_field():
 
                     # Configure timing and trigger from the stimulator
                     ai_task.timing.cfg_samp_clk_timing(sample_rate, sample_mode=AcquisitionType.FINITE, samps_per_chan=num_samples)
-                    ai_task.triggers.start_trigger.cfg_dig_edge_start_trig("/Dev1/PFI0")
-
+                    #ai_task.triggers.start_trigger.cfg_dig_edge_start_trig("/Dev1/PFI0")
+                    ai_task.triggers.start_trigger.cfg_anlg_multi_edge_start_trig("/Dev1/PFI0")
                     # Add analog output channel to trigger the stimulator
                     ao_task.ao_channels.add_ao_voltage_chan("Dev1/ao0")
 

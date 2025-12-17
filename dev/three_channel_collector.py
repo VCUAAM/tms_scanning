@@ -23,7 +23,8 @@ with nidaqmx.Task() as ai_task, nidaqmx.Task() as ao_task:
     ai_task.ai_channels.add_ai_voltage_chan("Dev1/ai1")
     ai_task.ai_channels.add_ai_voltage_chan("Dev1/ai2")
     ai_task.timing.cfg_samp_clk_timing(sample_rate, sample_mode=AcquisitionType.FINITE, samps_per_chan=num_samples)
-    ai_task.triggers.start_trigger.cfg_dig_edge_start_trig("/Dev1/PFI0")
+    #ai_task.triggers.start_trigger.cfg_dig_edge_start_trig("/Dev1/PFI0")\
+    ai_task.triggers.start_trigger.cfg_anlg_edge_start_trig("/Dev1/PFI0")
 
     ao_task.ao_channels.add_ao_voltage_chan("Dev1/ao0")
 
