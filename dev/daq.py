@@ -106,7 +106,9 @@ class DAQController:
         plt.legend()
         plt.grid(True)
         plt.tight_layout()
+        plt.waitforbuttonpress(timeout=-1)
         plt.show()
+        
     
 if __name__ == "__main__":
     daq_controller = DAQController()

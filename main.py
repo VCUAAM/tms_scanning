@@ -7,6 +7,8 @@ from matplotlib.colors import Normalize
 import tkinter as tk
 from tkinter import messagebox
 import warnings
+from scipy.interpolate import griddata
+from scipy.ndimage import gaussian_filter
 
 class ExperimentController:
     def __init__(self, robot, daq, output_file):
@@ -14,6 +16,7 @@ class ExperimentController:
         self.daq = daq
         self.output_file = output_file
         self.visualize = False
+        self.plot_size = False
 
     # Function to check with user and ask a question 
     def ask_yes_no_popup(self,string):
@@ -34,6 +37,13 @@ class ExperimentController:
         # Load the data from the text file
         data = np.loadtxt('saved_data/'+ self.output_file,skiprows=1,usecols=(0,1,2))
 
+        if data.ndim == 1:
+            data = data.reshape(1, -1)
+            
+        if data.shape[0] == 1:
+            print(f"Not enough data points in '{self.output_file}' to create heatmap")
+            return
+
         # Extract the x, y coordinates and magnitude range
         x = data[:, 1]
         x = [int(i) for i in x]
@@ -52,15 +62,37 @@ class ExperimentController:
             y_index = np.where(y_unique == y[i])[0][0]
             heatmap[y_index, x_index] = magnitude_range[i]
 
+        heatmap[heatmap == 0] = np.nan
         # Create a heatmap using matplotlib 
         fontsize = 16
         plt.rcParams['mathtext.fontset'] = 'cm'
-        plt.imshow(heatmap, extent=(np.min(x_unique), np.max(x_unique), np.min(y_unique), np.max(y_unique)),interpolation='bicubic', origin='lower', cmap='plasma', aspect='auto',vmin=np.min(magnitude_range), vmax=np.max(magnitude_range))
+        if self.plot_size:
+            i = 0
+        else:
+            i = 1
+
+        xlo = [-self.plot_size,np.min(x_unique)][i]
+        xhi = [self.plot_size,np.max(x_unique)][i]
+        ylo = [-self.plot_size,np.min(y_unique)][i]
+        yhi = [self.plot_size,np.max(y_unique)][i]
+        
+        ny,nx = heatmap.shape
+        yy,xx = np.mgrid[0:ny,0:nx]
+        pts = np.column_stack((xx[~np.isnan(heatmap)], yy[~np.isnan(heatmap)]))
+        vals = heatmap[~np.isnan(heatmap)]
+
+        pts_missing = np.column_stack((xx[np.isnan(heatmap)], yy[np.isnan(heatmap)]))
+        heatmap_smooth = heatmap.copy()
+        heatmap_smooth[np.isnan(heatmap)]=griddata(pts,vals,pts_missing,method='cubic')
+        heatmap_smooth = heatmap_smooth[ylo:yhi+1, xlo:xhi+1]
+        plt.imshow(heatmap_smooth, extent=(xlo, xhi, ylo, yhi), interpolation='bicubic',origin='lower', cmap='plasma', aspect='auto',vmin=np.min(magnitude_range), vmax=np.max(magnitude_range))
         hm = plt.colorbar()
         hm.set_label('E-Field Magnitude Range (V/m)', fontsize=fontsize,labelpad=15)
         hm.ax.tick_params(labelsize=fontsize-2)
         plt.xlabel('(mm)',fontsize=fontsize)
         plt.ylabel('(mm)',fontsize=fontsize)
+        plt.xlim(xlo,xhi)
+        plt.ylim(ylo,yhi)
         plt.tick_params(axis='both', which='major', labelsize=(fontsize-2))
         plt.grid(False)
 
@@ -72,12 +104,12 @@ class ExperimentController:
         plt.xticks(xticks, labels)
         plt.yticks(yticks, labels)
         '''
-
+        # Save the heatmap as an image file
+        plt.savefig('heatmap_magnitude_range.png', dpi=300, bbox_inches='tight')
         # Show the heatmap
         plt.show()
 
-        # Save the heatmap as an image file
-        plt.savefig('heatmap_magnitude_range.png', dpi=300, bbox_inches='tight')
+        
         plt.close()
 
         print("Heatmap created and saved as 'heatmap_magnitude_range.png'")
@@ -85,7 +117,7 @@ class ExperimentController:
         
 
     # Function to plot all the currently collected points and display them to the viewer
-    def plot_map(self,block=True):
+    def plot_map(self,block=True,size=False):
         # Loading data from output file
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -98,24 +130,29 @@ class ExperimentController:
         # Extracting relevant data 
         x_coords = data[:,1]
         y_coords = data[:,2]
-        labels = [round(i,2) for i in data[:,0]]
+        labels = [round(i,1) for i in data[:,0]]
 
         # Creating the plot
         _, ax = plt.subplots(constrained_layout=True)
-        cmap = plt.get_cmap('cool')
+        cmap = plt.get_cmap('viridis')
         norm = Normalize(vmin=np.min(labels), vmax=np.max(labels))
         ax.scatter(x_coords, y_coords, c=labels, cmap=cmap, norm=norm)
 
         # Loop through each point to add the label inside a circle
         for i, label in enumerate(labels):
             color = cmap(norm(label))  # Get the color from the colormap for the current label
-            ax.text(x_coords[i], y_coords[i], str(label),ha="center", va="center",bbox=dict(boxstyle="circle,pad=0.5",fc=color,ec="black",lw=1))
+            ax.text(x_coords[i], y_coords[i], str(label),ha="center", va="center",bbox=dict(boxstyle="circle,pad=0.1",fc=color,ec="black",lw=1))
         
         # Setting plot properties
         ax.set_xlabel("x (mm)")
         ax.set_ylabel("y (mm)")
-        ax.set_xlim(np.min(x_coords) - 1, np.max(x_coords) + 1)
-        ax.set_ylim(np.min(y_coords) - 1, np.max(y_coords) + 1)
+
+        if self.plot_size:
+            ax.set_xlim(-self.plot_size - 1, self.plot_size + 1)
+            ax.set_ylim(-self.plot_size - 1, self.plot_size + 1)
+        else:
+            ax.set_xlim(np.min(x_coords) - 1, np.max(x_coords) + 1)
+            ax.set_ylim(np.min(y_coords) - 1, np.max(y_coords) + 1)
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
         ax.set_title("Currently Collected Points")
@@ -182,7 +219,7 @@ class ExperimentController:
         np.savetxt('saved_data/' + self.output_file, sorted_data, fmt=fmt, header=header)
 
     # Function that will collect pulses from the stimulator, process them, and filter out outliers before saving to file
-    def collect_point(self):
+    def collect_point(self,save=False):
         mag_buffer = []
 
         while True:
@@ -212,43 +249,54 @@ class ExperimentController:
                 mag_buffer = mag_np[mask].tolist()
 
                 # Recollecting points if any outliers were removed
-                if len(mag_buffer) > np.sum(mask):
+                if mag_np.shape[0] > np.sum(mask):
                     continue
-                
+
                 # Saving the averaged pulse to the file and plotting it
                 avg = np.mean(np.array(mag_buffer), axis=0).tolist()
-                self.save_to_file(avg)
-                self.plot_map(block=False)
+                sd = np.std(np.array(mag_buffer), axis=0).tolist()
 
-                # Checking with user to make sure the pulse is good
-                if self.ask_yes_no_popup(f"Is the pulse at {self.robot.xcoord,self.robot.ycoord} good?"):
-                    plt.close()
-                    return
+                if save:
+                    self.save_to_file(avg)
+                    self.plot_map(block=False)
+
+                    # Checking with user to make sure the pulse is good
+                    if self.ask_yes_no_popup(f"Is the pulse at {self.robot.xcoord,self.robot.ycoord} good?"):
+                        plt.close()
+                        return
+                    else:
+                        plt.close()
+                        mag_buffer.clear()
                 else:
-                    plt.close()
-                    mag_buffer.clear()
+                    print(f"Mag X: {avg[0]:.2f} V/m"
+                          f"\nMag Y: {avg[1]:.2f} V/m"
+                          f"\nMag Z: {avg[2]:.2f} V/m"
+                          f"\nMag Total: {avg[3]:.2f} V/m"
+                          f"\nSTD: {sd[3]:.2f}")
+                    self.daq.plot_waveform(pulse)
+                    return
 
     # Iterating function to query desired collection point and pulse data
     def run(self):
         while True:
             self.robot.move_to_collection_point()
-            self.collect_point()
+            self.collect_point(save=True)
 
-            if self.ask_yes_no_popup("Keep collecting points?"):
+            if not self.ask_yes_no_popup("Keep collecting points?"):
                 return
             rob.xcoord = None
             rob.ycoord = None
 
 if __name__ == "__main__":
-    HOME_POSE = [-0.005, -0.526, 0.222, 2.48, -0.919, 0.712] # figure of 8
+    HOME_POSE = [0.018, -0.592, 0.235, 2.928, -1.07, 0.179] # figure of 8
     #HOME_POSE = [-0.005, -0.526, 0.222, 2.48, -0.919, 0.712] # you can save multiple positions, just comment the ones not in use
-
+    #HOME_POSE = [0.011, -0.558, 0.225, 2.583, -0.987, 0.735]
     ''' Change this to match the name of the output file'''
-    OUTPUT_FILE = "121725_fo8_50.txt"
+    OUTPUT_FILE = "122325_fo8_50.txt"
 
     rob = RobotController()
     rob.home_pose = HOME_POSE
-    rob.debugging = False # If true, will print out force values during normalization procedure
+    rob.debugging = True # If true, will print out force values during normalization procedure
 
     daq = DAQController()
     daq.sample_rate = 40000 # Hz
@@ -259,14 +307,18 @@ if __name__ == "__main__":
 
     daq.intervals = 0.75 # Number of seconds between pulses
     daq.samples = 10 # Number of samples for each position
-    daq.threshold = 200 # Magnitudes measured above this are ignored
+    daq.threshold = 175 # Magnitudes measured above this are ignored
     daq.sd_filter = 2 # Values this many standard deviations from the mean are ignored
     
     exp = ExperimentController(rob, daq, OUTPUT_FILE)
+    exp.plot_size = False#5 # Sets bounds for heatmap size. Set to false for automatic bounds
 
     try:
         ''' Uncomment this line for data collection '''
         #exp.run()
+
+        ''' Uncomment this to collect an averaged pulse '''
+        #exp.collect_point()
 
         ''' Uncomment this line to test a single pulse and plot it'''
         #daq.single_pulse()
@@ -275,7 +327,7 @@ if __name__ == "__main__":
         #exp.plot_map()
 
         ''' Uncomment this line to create a heatmap of the collected data points '''
-        #exp.create_heatmap()
+        exp.create_heatmap()
 
         ''' Uncomment this line to export the current position of the robot '''
         #rob.print_current_pos()

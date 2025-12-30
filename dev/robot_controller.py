@@ -16,8 +16,8 @@ class RobotController:
         self.ycoord = None
 
         # Normalization parameters
-        self.rx = .25 # Initial angular change for each iteration in x
-        self.ry = .25 # Initial angular change for each iteration in y
+        self.rx = 1 # Initial angular change for each iteration in x
+        self.ry = 1 # Initial angular change for each iteration in y
         self.err = .5 # Acceptable error in N
 
         while True:
@@ -176,7 +176,7 @@ class RobotController:
         num_cycles=25
 
         i = 0
-        xdir_i,ydir_i = 1,1
+        xdir_i,ydir_i = -1,-1
         xdir,ydir = xdir_i,ydir_i
         xgood,ygood = False, False
         
@@ -205,7 +205,7 @@ class RobotController:
 
             # Checking if the x angle needs to be adjusted
             if abs(x_i) > err and not xgood:
-                xdir = abs(x_i)/x_i
+                xdir = -abs(x_i)/x_i
                 if xdir != xdir_i:
                     xdir_i = xdir
                     rx = rx/2
@@ -215,7 +215,7 @@ class RobotController:
             
             # Checking if the y angle needs to be adjusted
             if abs(y_i) > err and not ygood:
-                ydir = abs(y_i)/y_i
+                ydir = -abs(y_i)/y_i
                 if ydir != ydir_i:
                     ydir_i = ydir
                     ry = ry/2
@@ -226,9 +226,9 @@ class RobotController:
             i += 1
         
         # Indicating outcome of normalization procedure 
-        if self.debugging and i < num_cycles:
+        if i < num_cycles:
             print('Coil normalized')
-        elif i >= num_cycles:
+        else:
             print('Normalization failed')
 
     # Queries user for position
