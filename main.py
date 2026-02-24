@@ -17,6 +17,11 @@ class ExperimentController:
         self.output_file = output_file
         self.visualize = False
         self.plot_size = False
+        self.grid_xlo = -5
+        self.grid_xhi = 5
+        self.grid_ylo = -5
+        self.grid_yhi = 5
+        self.grid_increment = 1
 
     # Function to check with user and ask a question 
     def ask_yes_no_popup(self,string):
@@ -219,7 +224,7 @@ class ExperimentController:
         np.savetxt('saved_data/' + self.output_file, sorted_data, fmt=fmt, header=header)
 
     # Function that will collect pulses from the stimulator, process them, and filter out outliers before saving to file
-    def collect_point(self,save=False):
+    def collect_point(self,save=False,query_user=True):
         mag_buffer = []
 
         while True:
@@ -258,15 +263,16 @@ class ExperimentController:
 
                 if save:
                     self.save_to_file(avg)
-                    self.plot_map(block=False)
+                    if query_user:
+                        self.plot_map(block=False)
 
-                    # Checking with user to make sure the pulse is good
-                    if self.ask_yes_no_popup(f"Is the pulse at {self.robot.xcoord,self.robot.ycoord} good?"):
-                        plt.close()
-                        return
-                    else:
-                        plt.close()
-                        mag_buffer.clear()
+                        # Checking with user to make sure the pulse is good
+                        if self.ask_yes_no_popup(f"Is the pulse at {self.robot.xcoord,self.robot.ycoord} good?"):
+                            plt.close()
+                            return
+                        else:
+                            plt.close()
+                            mag_buffer.clear()
                 else:
                     print(f"Mag X: {avg[0]:.2f} V/m"
                           f"\nMag Y: {avg[1]:.2f} V/m"
@@ -277,15 +283,19 @@ class ExperimentController:
                     return
 
     # Iterating function to query desired collection point and pulse data
-    def run(self):
-        while True:
-            self.robot.move_to_collection_point()
-            self.collect_point(save=True)
+    def run(self,grid = False):
+        if grid:
+            for i in range(self.grid_xlo,self.grid_xhi + 1,self.grid_increment):
+                for j in range(self.grid_ylo,self.grid_yhi + 1,self.grid_increment):
+                    rob.move_to_collection_point(i,j)
+                    self.collect_point(save=True)
+        else:
+            while True:
+                self.robot.move_to_collection_point()
+                self.collect_point(save=True)
 
-            if not self.ask_yes_no_popup("Keep collecting points?"):
-                return
-            rob.xcoord = None
-            rob.ycoord = None
+                if not self.ask_yes_no_popup("Keep collecting points?"):
+                    return
 
 if __name__ == "__main__":
     HOME_POSE = [0.018, -0.592, 0.235, 2.928, -1.07, 0.179] # figure of 8
@@ -293,7 +303,7 @@ if __name__ == "__main__":
     #HOME_POSE = [0.011, -0.558, 0.225, 2.583, -0.987, 0.735]
     ''' Change this to match the name of the output file'''
     OUTPUT_FILE = "122325_fo8_50.txt"
-
+    '''
     rob = RobotController()
     rob.home_pose = HOME_POSE
     rob.debugging = True # If true, will print out force values during normalization procedure
@@ -309,13 +319,22 @@ if __name__ == "__main__":
     daq.samples = 10 # Number of samples for each position
     daq.threshold = 175 # Magnitudes measured above this are ignored
     daq.sd_filter = 2 # Values this many standard deviations from the mean are ignored
-    
+    '''
+    rob = 1
+    daq = 1
     exp = ExperimentController(rob, daq, OUTPUT_FILE)
     exp.plot_size = False#5 # Sets bounds for heatmap size. Set to false for automatic bounds
+    exp.grid_xhi = 5
+    exp.grid_xlo = -5
+    exp.grid_yhi = 5
+    exp.grid_ylo = -5
 
     try:
         ''' Uncomment this line for data collection '''
         #exp.run()
+
+        ''' Uncomment this line for grid-based data collection '''
+        exp.run(grid=True)
 
         ''' Uncomment this to collect an averaged pulse '''
         #exp.collect_point()
@@ -327,7 +346,7 @@ if __name__ == "__main__":
         #exp.plot_map()
 
         ''' Uncomment this line to create a heatmap of the collected data points '''
-        exp.create_heatmap()
+        #exp.create_heatmap()
 
         ''' Uncomment this line to export the current position of the robot '''
         #rob.print_current_pos()
@@ -338,7 +357,7 @@ if __name__ == "__main__":
         ''' Uncomment this line to normalize the coil at the current location 
         (You should probably save the robot position first in case it fails)'''
         #rob.normalize_coil()
-
+        
     except KeyboardInterrupt:
         print("KeyboardInterrupt detected.")
     finally:
