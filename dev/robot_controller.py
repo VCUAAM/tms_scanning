@@ -12,8 +12,6 @@ class RobotController:
         self.ip = "192.168.1.102"
         self.home_pose = [-0.005, -0.526, 0.222, 2.48, -0.919, 0.712] # x,y,z,rx,ry,rz figure of 8
         self.debugging = False
-        self.xcoord = None
-        self.ycoord = None
 
         # Normalization parameters
         self.rx = 1 # Initial angular change for each iteration in x
@@ -232,18 +230,18 @@ class RobotController:
             print('Normalization failed')
 
     # Queries user for position
-    def move_to_collection_point(self):
+    def move_to_collection_point(self,xcoord=None,ycoord=None):
         self.tool_z(distance=-2,vel=0.05)
         self.move_home()
 
-        if self.xcoord is None and self.ycoord is None:
+        if xcoord is None or ycoord is None:
             root = tk.Tk()
             root.withdraw()
-            self.xcoord = simpledialog.askinteger("Input", "Enter X coordinate relative to this position (mm):")
+            xcoord = simpledialog.askinteger("Input", "Enter X coordinate relative to this position (mm):")
             self.ycoord = simpledialog.askinteger("Input", "Enter Y coordinate relative to this position (mm):")
             root.destroy()
-
-        self.moveL(self.pose_offset([self.xcoord / 1000, self.ycoord / 1000, 0]),vel=0.05)
+            
+        self.moveL(self.pose_offset([xcoord / 1000, ycoord / 1000, 0]),vel=0.05)
         self.tool_z(contact=True)
     
     def shutdown(self):
